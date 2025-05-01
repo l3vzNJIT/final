@@ -73,6 +73,7 @@ class User(Base):
     verification_token = Column(String, nullable=True)
     email_verified: Mapped[bool] = Column(Boolean, default=False, nullable=False)
     hashed_password: Mapped[str] = Column(String(255), nullable=False)
+    profile_picture_url = Column(String, nullable=True)
 
 
     def __repr__(self) -> str:
