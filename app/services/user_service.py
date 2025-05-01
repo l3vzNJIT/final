@@ -205,8 +205,8 @@ class UserService:
     @classmethod
     async def upload_profile_picture(cls, file: UploadFile, user_id: int) -> str:
         ensure_bucket_exists()
-        file_extension = file.filename.split('.')[-1]
-        object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_extension}"
+        file_ext = file.filename.split('.')[-1]
+        object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_ext}"
         content = await file.read()
 
         minio_client.put_object(
@@ -217,4 +217,6 @@ class UserService:
             content_type=file.content_type
         )
 
-        return object_name
+        # Construct external URL (via nginx or public policy)
+        external_url = f"{settings.server_base_url}/media/{object_name}"
+        return external_url
