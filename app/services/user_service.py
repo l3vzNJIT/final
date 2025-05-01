@@ -19,6 +19,7 @@ from fastapi import UploadFile
 from app.utils.minio_client import minio_client, bucket_name
 from app.utils.minio_client import ensure_bucket_exists
 import uuid
+import io
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -209,12 +210,14 @@ class UserService:
         ensure_bucket_exists()
         file_ext = file.filename.split('.')[-1]
         object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_ext}"
+
         content = await file.read()
+        content_stream = io.BytesIO(content)
 
         minio_client.put_object(
             bucket_name,
             object_name,
-            data=content,
+            data=content_stream,
             length=len(content),
             content_type=file.content_type
         )
