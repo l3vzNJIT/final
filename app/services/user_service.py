@@ -15,6 +15,8 @@ from uuid import UUID
 from app.services.email_service import EmailService
 from app.models.user_model import UserRole
 import logging
+from fastapi import UploadFile
+from app.utils.minio_client import minio_client, bucket_name
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -199,3 +201,20 @@ class UserService:
             await session.commit()
             return True
         return False
+
+    @classmethod
+    async def upload_profile_picture(cls, file: UploadFile, user_id: int) -> str:
+        ensure_bucket_exists()
+        file_extension = file.filename.split('.')[-1]
+        object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_extension}"
+        content = await file.read()
+
+        minio_client.put_object(
+            bucket_name,
+            object_name,
+            data=content,
+            length=len(content),
+            content_type=file.content_type
+        )
+
+        return object_name
