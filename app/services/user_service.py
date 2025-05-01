@@ -204,6 +204,7 @@ class UserService:
 
     @classmethod
     async def upload_profile_picture(cls, file: UploadFile, user_id: int) -> str:
+        ensure_bucket_exists()
         file_extension = file.filename.split('.')[-1]
         object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_extension}"
         content = await file.read()
