@@ -1,0 +1,12 @@
+# CVE-2024-23342 refers to a vulnerability where:
+# ECDSA (elliptic curve digital signature algorithm) operations may leak timing info
+# The “Minerva” attack uses this to infer private keys — but only in very specific conditions
+# It only applies when:
+    # You’re generating or signing ECDSA keys
+    # The attacker can observe very fine-grained timing differences
+# Typically only affects smartcards, HSMs, embedded hardware, etc.
+# So unless you’re:
+    # Signing sensitive ECDSA keys at runtime with untrusted clients
+    # Running inside a hardware device exposed to attackers
+# ...you are almost certainly not at risk.
+CVE-2024-23342
