@@ -1,4 +1,5 @@
 from minio import Minio
+from minio.error import S3Error
 import os
 
 minio_client = Minio(
@@ -10,6 +11,9 @@ minio_client = Minio(
 
 bucket_name = "myapp-bucket"
 
-# Ensure the bucket exists
-if not minio_client.bucket_exists(bucket_name):
-    minio_client.make_bucket(bucket_name)
+def ensure_bucket_exists():
+    try:
+        if not minio_client.bucket_exists(bucket_name):
+            minio_client.make_bucket(bucket_name)
+    except Exception as e:
+        raise RuntimeError(f"Warning: could not verify or create bucket: {e}")
