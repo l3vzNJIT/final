@@ -250,19 +250,22 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
 
 @router.post("/users/me/profile-picture", status_code=200, tags=["User Management"])
 async def upload_profile_picture(
-	file: UploadFile,
-	db: AsyncSession = Depends(get_db),
-	current_user: dict = Depends(get_current_user)
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-	user_id = current_user["user_id"]
-	profile_picture_url = await UserService.upload_profile_picture(file, user_id)
+    # Get user from DB by email (which is in 'sub' field)
+    user = await UserService.get_by_email(db, current_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-	user = await UserService.get_by_id(db, user_id)
-	if not user:
-		raise HTTPException(status_code=404, detail="User not found")
+    # Upload file and get public URL
+    profile_picture_url = await UserService.upload_profile_picture(file, user.id)
 
-	user.profile_picture_url = profile_picture_url
-	db.add(user)
-	await db.commit()
+    # Update DB with new URL
+    user.profile_picture_url = profile_picture_url
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
 
-	return {"profile_picture_url": profile_picture_url}
+    return {"profile_picture_url": profile_picture_url}
