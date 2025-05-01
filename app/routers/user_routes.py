@@ -21,7 +21,7 @@ Key Highlights:
 from builtins import dict, int, len, str
 from datetime import timedelta
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Request, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db, get_email_service, require_role
@@ -33,6 +33,7 @@ from app.services.jwt_service import create_access_token
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
+from fastapi.responses import JSONResponse
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 settings = get_settings()
@@ -245,3 +246,28 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
     if await UserService.verify_email_with_token(db, user_id, token):
         return {"message": "Email verified successfully"}
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
+
+
+@router.post("/users/me/profile-picture", status_code=200, tags=["User Management"])
+async def upload_profile_picture(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload or update the current user's profile picture.
+
+    This stores the picture in MinIO and updates the user's profile_picture_object in the database.
+    """
+    user_id = current_user["id"]
+    object_name = await UserService.upload_profile_picture(file, user_id)
+
+    user = await UserService.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.profile_picture_object = object_name
+    db.add(user)
+    await db.commit()
+
+    return {"message": "Profile picture uploaded successfully."}
