@@ -250,24 +250,19 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
 
 @router.post("/users/me/profile-picture", status_code=200, tags=["User Management"])
 async def upload_profile_picture(
-    file: UploadFile,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+	file: UploadFile,
+	db: AsyncSession = Depends(get_db),
+	current_user: dict = Depends(get_current_user)
 ):
-    """
-    Upload or update the current user's profile picture.
+	user_id = current_user["user_id"]
+	profile_picture_url = await UserService.upload_profile_picture(file, user_id)
 
-    This stores the picture in MinIO and updates the user's profile_picture_object in the database.
-    """
-    user_id = current_user["id"]
-    object_name = await UserService.upload_profile_picture(file, user_id)
+	user = await UserService.get_by_id(db, user_id)
+	if not user:
+		raise HTTPException(status_code=404, detail="User not found")
 
-    user = await UserService.get_by_id(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+	user.profile_picture_url = profile_picture_url
+	db.add(user)
+	await db.commit()
 
-    user.profile_picture_object = object_name
-    db.add(user)
-    await db.commit()
-
-    return {"message": "Profile picture uploaded successfully."}
+	return {"profile_picture_url": profile_picture_url}
