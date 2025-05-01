@@ -18,6 +18,7 @@ import logging
 from fastapi import UploadFile
 from app.utils.minio_client import minio_client, bucket_name
 from app.utils.minio_client import ensure_bucket_exists
+import uuid
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
