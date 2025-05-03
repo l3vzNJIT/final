@@ -258,3 +258,11 @@ async def test_upload_empty_picture_data(db_session, user):
 async def test_get_picture_invalid_uuid(db_session):
     with pytest.raises(Exception):
         await UserService.get_profile_picture(db_session, "not-a-uuid")
+
+
+# Test: upload picture for locked user
+async def test_upload_picture_locked_user(db_session, locked_user):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+    updated_user = await UserService.upload_profile_picture(db_session, locked_user.id, file)
+    assert updated_user.profile_picture_url.endswith(f"profile_pictures/{locked_user.id}")
