@@ -266,3 +266,15 @@ async def test_upload_picture_locked_user(db_session, locked_user):
     file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=header)
     upd_user = await UserService.upload_profile_picture(db_session, locked_user.id, file)
     assert upd_user.profile_picture_url.endswith(f"profile_pictures/{locked_user.id}")
+
+
+# Test: get picture after upload returns same bytes
+async def test_get_picture_matches_uploaded(monkeypatch, db_session, user):
+    # Simulate upload storing exact bytes
+    expected = b"test-bytes"
+    class MockObject:
+        def read(self):
+            return expected
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", lambda *a, **kw: MockObject())
+    result = await UserService.get_profile_picture(db_session, user.id)
+    assert result == expected
