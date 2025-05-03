@@ -6,6 +6,10 @@ from app.database import Database
 from app.dependencies import get_settings
 from app.routers import user_routes
 from app.utils.api_description import getDescription
+from app.utils.minio_client import ensure_bucket_exists
+
+ensure_bucket_exists()
+
 app = FastAPI(
     title="User Management",
     description=getDescription(),
