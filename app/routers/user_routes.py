@@ -261,6 +261,7 @@ Lev's contributions: an API route to upload a picture for a given user
 )
 async def upload_profile_picture(
     user_id: UUID,
+    user_update: UserUpdate,
     file: UploadFile = File(...),
     request: Request = None,
     db: AsyncSession = Depends(get_db),
