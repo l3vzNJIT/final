@@ -276,7 +276,7 @@ async def upload_profile_picture(
     updated_user = await UserService.upload_profile_picture(
         session=db,
         user_id=user_id,
-        update_data={},
+        update_data=user_update.model_dump(exclude_unset=True),
         file=file
     )
 
