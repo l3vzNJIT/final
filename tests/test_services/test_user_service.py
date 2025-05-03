@@ -242,3 +242,12 @@ async def test_get_profile_picture_unexpected_error(monkeypatch, db_session, use
     with pytest.raises(HTTPException) as exc_info:
         await UserService.get_profile_picture(db_session, user.id)
     assert exc_info.value.status_code == 500
+
+
+
+# Test: upload empty picture data
+async def test_upload_empty_picture_data(db_session, user):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b""), headers=headers)
+    updated_user = await UserService.upload_profile_picture(db_session, user.id, file)
+    assert updated_user.profile_picture_url.endswith(f"profile_pictures/{user.id}")
