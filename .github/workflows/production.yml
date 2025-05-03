@@ -23,7 +23,11 @@ jobs:
           POSTGRES_DB: myappdb
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
       minio:
         image: minio/minio
@@ -34,11 +38,10 @@ jobs:
           - 9000:9000
           - 9001:9001
         options: >-
-          --health-cmd="wget --spider -q http://127.0.0.1:9000/minio/health/ready || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        entrypoint: sh -c "minio server /data --console-address ':9001'"
+          --health-cmd "curl -f http://localhost:9000/minio/health/ready || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -103,4 +106,3 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
-
