@@ -190,3 +190,18 @@ async def test_upload_profile_picture_user_not_found(db_session):
     with pytest.raises(HTTPException) as exc_info:
         await UserService.upload_profile_picture(db_session, "00000000-0000-0000-0000-000000000000", file)
     assert exc_info.value.status_code == 500
+
+
+# Test: uploading profile picture with invalid file (simulate failure in MinIO)
+async def test_upload_profile_picture_minio_failure(monkeypatch, db_session, user):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+
+    def mock_put_object(*args, **kwargs):
+        raise S3Error("MinIO error", "PUT", "bucket", "object", 500, "trace")
+
+    monkeypatch.setattr("app.services.user_service.minio_client.put_object", mock_put_object)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.upload_profile_picture(db_session, user.id, file)
+    assert exc_info.value.status_code == 500
