@@ -20,6 +20,8 @@ from app.utils.minio_client import minio_client, bucket_name
 from app.utils.minio_client import ensure_bucket_exists
 import uuid
 import io
+from minio.error import S3Error
+from fastapi import HTTPException, status
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -205,15 +207,24 @@ class UserService:
             return True
         return False
 
-    @classmethod
-    async def upload_profile_picture(cls, file: UploadFile, user_id: int) -> str:
-        ensure_bucket_exists()
-        file_ext = file.filename.split('.')[-1]
-        object_name = f"profile_pictures/{user_id}_{uuid.uuid4()}.{file_ext}"
 
+@classmethod
+async def upload_profile_picture(
+    cls, session: AsyncSession, user_id: UUID,
+    update_data: Dict[str, str], file: UploadFile
+) -> User:
+    """Upload a profile picture for a user and update the user's records with it"""
+
+    # Ensure bucket exists
+    ensure_bucket_exists()
+    # Internal MinIO reference to the picture
+    object_name = f"profile_pictures/{user_id}"
+    logger.info(f"Uploading a new profile picture for User {user_id}")
+
+    # Upload the file to MinIO
+    try:
         content = await file.read()
         content_stream = io.BytesIO(content)
-
         minio_client.put_object(
             bucket_name,
             object_name,
@@ -221,7 +232,65 @@ class UserService:
             length=len(content),
             content_type=file.content_type
         )
+    # Handle MinIO Error
+    except S3Error as e:
+        logger.error(f"MinIO upload failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload profile picture. Please try again later."
+        )
+    # Handle generic error
+    except Exception as e:
+        logger.exception(f"Unexpected error during file upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error while uploading profile picture."
+        )
 
-        # Construct external URL (via nginx or public policy)
-        external_url = f"{settings.server_base_url}/media/{object_name}"
-        return external_url
+    # Construct external URL (via nginx or public policy)
+    # This will make it visible outside the docker container
+    external_url = f"{settings.server_base_url}/media/{object_name}"
+    # Validate user info via Pydantic
+    validated_data = UserUpdate(**update_data).model_dump(exclude_unset=True)
+    # Update the user's profile picture URL in the database
+    validated_data['profile_picture_url'] = external_url
+
+    try:
+        # Get User data by executing SQL on Postgres
+        user = await session.get(User, user_id)
+        if not user:
+            # If user doesn't exist, raise that up
+            logger.warning(f"User {user_id} not found before update.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found."
+            )
+
+        # Update user's record to have the profile picture URL
+        for key, value in validated_data.items():
+            setattr(user, key, value)
+
+        # Update the user's record on the database
+        # Updates the SQLAlchemy ORM object directly
+        await session.commit()
+        await session.refresh(user)
+        logger.info(f"User {user_id} updated successfully with new profile picture.")
+        return user
+
+    # Handle query errors
+    except SQLAlchemyError as e:
+        logger.exception(f"Database error while updating user {user_id}: {e}")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while updating user."
+        )
+
+    # Handle generic errors
+    except Exception as e:
+        logger.exception(f"Unexpected error updating user {user_id}: {e}")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error occurred during user update."
+        )

@@ -248,24 +248,49 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
 
 
-@router.post("/users/me/profile-picture", status_code=200, tags=["User Management"])
+"""
+Lev's contributions: an API route to upload a picture for a given user
+"""
+@router.post(
+    "/users/{user_id}/profile-picture",
+    response_model=UserResponse,
+    name="upload_profile_picture",
+    tags=["User Management Requires (Admin or Manager Roles)"]
+)
 async def upload_profile_picture(
-    file: UploadFile,
+    user_id: UUID,
+    file: UploadFile = File(...),
+    request: Request = None,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    token: str = Depends(oauth2_scheme),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"]))
 ):
-    # Get user from DB by email (which is in 'sub' field)
-    user = await UserService.get_by_email(db, current_user["user_id"])
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    """
+    Upload or replace a user's profile picture.
+    
+    - **user_id**: UUID of the user to update.
+    - **file**: The image file (PNG or JPEG) to upload.
+    """
+    updated_user = await UserService.upload_profile_picture(
+        session=db,
+        user_id=user_id,
+        update_data={},
+        file=file
+    )
 
-    # Upload file and get public URL
-    profile_picture_url = await UserService.upload_profile_picture(file, user.id)
-
-    # Update DB with new URL
-    user.profile_picture_url = profile_picture_url
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    return {"profile_picture_url": profile_picture_url}
+    return UserResponse.model_construct(
+        id=updated_user.id,
+        bio=updated_user.bio,
+        first_name=updated_user.first_name,
+        last_name=updated_user.last_name,
+        nickname=updated_user.nickname,
+        email=updated_user.email,
+        role=updated_user.role,
+        last_login_at=updated_user.last_login_at,
+        profile_picture_url=updated_user.profile_picture_url,
+        github_profile_url=updated_user.github_profile_url,
+        linkedin_profile_url=updated_user.linkedin_profile_url,
+        created_at=updated_user.created_at,
+        updated_at=updated_user.updated_at,
+        links=create_user_links(updated_user.id, request)
+    )

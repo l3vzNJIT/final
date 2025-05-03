@@ -12,6 +12,7 @@ minio_client = Minio(
 bucket_name = "myapp-bucket"
 
 def ensure_bucket_exists():
+    """Verify that the docker container has a bucket to store into"""
     try:
         if not minio_client.bucket_exists(bucket_name):
             minio_client.make_bucket(bucket_name)
