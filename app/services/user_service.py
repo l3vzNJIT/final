@@ -262,7 +262,7 @@ class UserService:
                 )
     
             # Update user's record to have the profile picture URL
-            user['profile_picture_url'] = external_url
+            user.profile_picture_url = external_url
 
             # Update the user's record on the database
             # Updates the SQLAlchemy ORM object directly
