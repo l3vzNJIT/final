@@ -5,6 +5,16 @@ from app.dependencies import get_settings
 from app.models.user_model import User, UserRole
 from app.services.user_service import UserService
 from app.utils.nickname_gen import generate_nickname
+import io
+from uuid import uuid4
+from fastapi import UploadFile
+from unittest.mock import patch, MagicMock
+from minio.error import S3Error
+from app.services.user_service import UserService
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.datastructures import Headers
+
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -161,3 +171,12 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
+
+
+# Test: successful profile picture upload
+async def test_upload_profile_picture_success(db_session, user):
+    # Simulate an uploaded image file
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+    updated_user = await UserService.upload_profile_picture(db_session, user.id, file)
+    assert updated_user.profile_picture_url.endswith(f"profile_pictures/{user.id}")
