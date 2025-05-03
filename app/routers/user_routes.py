@@ -261,7 +261,6 @@ Lev's contributions: an API route to upload a picture for a given user
 )
 async def upload_profile_picture(
     user_id: UUID,
-    user_update: UserUpdate,
     file: UploadFile = File(...),
     request: Request = None,
     db: AsyncSession = Depends(get_db),
@@ -277,7 +276,6 @@ async def upload_profile_picture(
     updated_user = await UserService.upload_profile_picture(
         session=db,
         user_id=user_id,
-        update_data=user_update.model_dump(exclude_unset=True),
         file=file
     )
 

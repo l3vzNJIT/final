@@ -210,8 +210,7 @@ class UserService:
 
     @classmethod
     async def upload_profile_picture(
-        cls, session: AsyncSession, user_id: UUID,
-        update_data: Dict[str, str], file: UploadFile
+        cls, session: AsyncSession, user_id: UUID, file: UploadFile
     ) -> User:
         """Upload a profile picture for a user and update the user's records with it"""
 
@@ -250,10 +249,6 @@ class UserService:
         # Construct external URL (via nginx or public policy)
         # This will make it visible outside the docker container
         external_url = f"{settings.server_base_url}/media/{object_name}"
-        # Validate user info via Pydantic
-        validated_data = UserUpdate(**update_data).model_dump(exclude_unset=True)
-        # Update the user's profile picture URL in the database
-        validated_data['profile_picture_url'] = external_url
 
         try:
             # Get User data by executing SQL on Postgres
@@ -267,8 +262,7 @@ class UserService:
                 )
     
             # Update user's record to have the profile picture URL
-            for key, value in validated_data.items():
-                setattr(user, key, value)
+            user['profile_picture_url'] = external_url
 
             # Update the user's record on the database
             # Updates the SQLAlchemy ORM object directly
