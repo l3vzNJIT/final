@@ -229,3 +229,16 @@ async def test_get_profile_picture_not_found(monkeypatch, db_session, user):
     with pytest.raises(HTTPException) as exc_info:
         await UserService.get_profile_picture(db_session, user.id)
     assert exc_info.value.status_code == 500
+
+
+
+# Test: get profile picture with unexpected error
+async def test_get_profile_picture_unexpected_error(monkeypatch, db_session, user):
+    def mock_get_object(*args, **kwargs):
+        raise Exception("Unexpected failure")
+
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", mock_get_object)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.get_profile_picture(db_session, user.id)
+    assert exc_info.value.status_code == 500
