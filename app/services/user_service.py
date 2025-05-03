@@ -22,6 +22,7 @@ import uuid
 import io
 from minio.error import S3Error
 from fastapi import HTTPException, status
+from starlette.concurrency import run_in_threadpool
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -287,4 +288,33 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Unexpected error occurred during user update."
+            )
+
+
+    @classmethod
+    async def get_profile_picture(
+        cls, session: AsyncSession, user_id: UUID
+    ) -> bytes:
+        """Return the profile picture of a user"""
+        # Internal MinIO reference to the picture
+        object_name = f"profile_pictures/{user_id}"
+        logger.info(f"Getting the profile picture of User {user_id}")
+
+        # Get the file from MinIO
+        try:
+            picture = await run_in_threadpool(minio_client.get_object, bucket_name, object_name)
+            return await run_in_threadpool(picture.read)
+        # Handle MinIO Error
+        except S3Error as e:
+            logger.error(f"MinIO file download failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get profile picture. Please try again later."
+            )
+        # Handle generic error
+        except Exception as e:
+            logger.exception(f"Unexpected error during picture download: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Unexpected error while downloading profile picture."
             )
