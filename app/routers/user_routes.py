@@ -33,7 +33,7 @@ from app.services.jwt_service import create_access_token
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 
 router = APIRouter()
@@ -295,3 +295,23 @@ async def upload_profile_picture(
         updated_at=updated_user.updated_at,
         links=create_user_links(updated_user.id, request)
     )
+
+
+@router.get(
+    "/users/{user_id}/profile-picture",
+    name="get_profile_picture",
+    tags=["User Management Requires (Admin or Manager Roles)"],
+    response_class=Response,
+)
+async def get_profile_picture(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"]))
+):
+    """
+    Get the raw bytes of the user's profile picture.
+    Returns image content directly.
+    """
+    image_data = await UserService.get_profile_picture(db, user_id)
+    return Response(content=image_data, media_type="image/jpeg")
