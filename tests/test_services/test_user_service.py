@@ -5,6 +5,17 @@ from app.dependencies import get_settings
 from app.models.user_model import User, UserRole
 from app.services.user_service import UserService
 from app.utils.nickname_gen import generate_nickname
+import io
+from uuid import uuid4
+from fastapi import UploadFile
+from unittest.mock import patch, MagicMock
+from minio.error import S3Error
+from app.services.user_service import UserService
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.datastructures import Headers
+from fastapi import HTTPException, status
+
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -161,3 +172,109 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
+
+
+# Test: successful profile picture upload
+async def test_upload_profile_picture_success(db_session, user):
+    # Simulate an uploaded image file
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+    updated_user = await UserService.upload_profile_picture(db_session, user.id, file)
+    assert updated_user.profile_picture_url.endswith(f"profile_pictures/{user.id}")
+
+
+# Test: uploading profile picture for non-existent user
+async def test_upload_profile_picture_user_not_found(db_session):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.upload_profile_picture(db_session, "00000000-0000-0000-0000-000000000000", file)
+    assert exc_info.value.status_code == 500
+
+
+# Test: uploading profile picture with invalid file (simulate failure in MinIO)
+async def test_upload_profile_picture_minio_failure(monkeypatch, db_session, user):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=headers)
+
+    def mock_put_object(*args, **kwargs):
+        raise S3Error("MinIO error", "PUT", "bucket", "object", 500, "trace")
+
+    monkeypatch.setattr("app.services.user_service.minio_client.put_object", mock_put_object)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.upload_profile_picture(db_session, user.id, file)
+    assert exc_info.value.status_code == 500
+
+
+# Test: get profile picture successfully
+async def test_get_profile_picture_success(monkeypatch, db_session, user):
+    # Mock minio_client.get_object and read()
+    class MockObject:
+        def read(self):
+            return b"image-bytes"
+
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", lambda *a, **kw: MockObject())
+    picture_bytes = await UserService.get_profile_picture(db_session, user.id)
+    assert picture_bytes == b"image-bytes"
+
+
+# Test: get profile picture when object not found
+async def test_get_profile_picture_not_found(monkeypatch, db_session, user):
+    def mock_get_object(*args, **kwargs):
+        raise S3Error("NoSuchKey", "GET", "bucket", "object", 404, "trace")
+
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", mock_get_object)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.get_profile_picture(db_session, user.id)
+    assert exc_info.value.status_code == 500
+
+
+
+# Test: get profile picture with unexpected error
+async def test_get_profile_picture_unexpected_error(monkeypatch, db_session, user):
+    def mock_get_object(*args, **kwargs):
+        raise Exception("Unexpected failure")
+
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", mock_get_object)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await UserService.get_profile_picture(db_session, user.id)
+    assert exc_info.value.status_code == 500
+
+
+
+# Test: upload empty picture data
+async def test_upload_empty_picture_data(db_session, user):
+    headers = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b""), headers=headers)
+    updated_user = await UserService.upload_profile_picture(db_session, user.id, file)
+    assert updated_user.profile_picture_url.endswith(f"profile_pictures/{user.id}")
+
+
+
+# Test: get picture with invalid user ID format
+async def test_get_picture_invalid_uuid(db_session):
+    with pytest.raises(Exception):
+        await UserService.get_profile_picture(db_session, "not-a-uuid")
+
+
+# Test: upload picture for locked user - branch for 9th test
+async def test_upload_picture_locked_user(db_session, locked_user):
+    header = Headers({"content-type": "image/jpeg"})
+    file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b"dummy"), headers=header)
+    upd_user = await UserService.upload_profile_picture(db_session, locked_user.id, file)
+    assert upd_user.profile_picture_url.endswith(f"profile_pictures/{locked_user.id}")
+
+
+# Test: get picture after upload returns same bytes
+async def test_get_picture_matches_uploaded(monkeypatch, db_session, user):
+    # Simulate upload storing exact bytes
+    expected = b"test-bytes"
+    class MockObject:
+        def read(self):
+            return expected
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", lambda *a, **kw: MockObject())
+    result = await UserService.get_profile_picture(db_session, user.id)
+    assert result == expected
