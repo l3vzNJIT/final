@@ -38,7 +38,7 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-        command: server /data --console-address ":9001"
+        entrypoint: sh -c "minio server /data --console-address ':9001'"
 
     steps:
       - uses: actions/checkout@v4
@@ -103,3 +103,4 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
