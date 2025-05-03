@@ -205,3 +205,15 @@ async def test_upload_profile_picture_minio_failure(monkeypatch, db_session, use
     with pytest.raises(HTTPException) as exc_info:
         await UserService.upload_profile_picture(db_session, user.id, file)
     assert exc_info.value.status_code == 500
+
+
+# Test: get profile picture successfully
+async def test_get_profile_picture_success(monkeypatch, db_session, user):
+    # Mock minio_client.get_object and read()
+    class MockObject:
+        def read(self):
+            return b"image-bytes"
+
+    monkeypatch.setattr("app.services.user_service.minio_client.get_object", lambda *a, **kw: MockObject())
+    picture_bytes = await UserService.get_profile_picture(db_session, user.id)
+    assert picture_bytes == b"image-bytes"
