@@ -251,3 +251,10 @@ async def test_upload_empty_picture_data(db_session, user):
     file = StarletteUploadFile(filename="test.jpg", file=io.BytesIO(b""), headers=headers)
     updated_user = await UserService.upload_profile_picture(db_session, user.id, file)
     assert updated_user.profile_picture_url.endswith(f"profile_pictures/{user.id}")
+
+
+
+# Test: get picture with invalid user ID format
+async def test_get_picture_invalid_uuid(db_session):
+    with pytest.raises(Exception):
+        await UserService.get_profile_picture(db_session, "not-a-uuid")
